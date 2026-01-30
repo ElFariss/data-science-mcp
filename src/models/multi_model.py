@@ -3,6 +3,7 @@
 from typing import Any, Optional, Callable, Awaitable
 from dataclasses import dataclass
 import time
+import asyncio
 
 from src.core.constraint_manager import ConstraintManager
 from src.models.registry import ModelFactory, ModelRegistry
@@ -92,11 +93,12 @@ class MultiModelRunner:
                 
                 # Train
                 start_time = time.time()
-                model.fit(X_train, y_train)
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(None, model.fit, X_train, y_train)
                 training_time = time.time() - start_time
                 
                 # Predict
-                y_pred = model.predict(X_val)
+                y_pred = await loop.run_in_executor(None, model.predict, X_val)
                 
                 # Evaluate
                 if task_type == "regression":
@@ -112,7 +114,8 @@ class MultiModelRunner:
                         score = f1_score(y_val, y_pred, average="weighted")
                     elif metric_name == "auc":
                         try:
-                            y_proba = model.predict_proba(X_val)[:, 1]
+                            # Also offload predict_proba if needed
+                            y_proba = await loop.run_in_executor(None, lambda: model.predict_proba(X_val)[:, 1])
                             score = roc_auc_score(y_val, y_proba)
                         except:
                             score = accuracy_score(y_val, y_pred)

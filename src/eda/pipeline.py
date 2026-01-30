@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Optional, Callable, Awaitable
 
 from src.core.version_manager import VersionManager
+from src.core.path_utils import get_output_dir, ensure_absolute_return
 
 
 async def run_eda_pipeline(
@@ -12,6 +13,7 @@ async def run_eda_pipeline(
     modality: str,
     save_plots: bool = True,
     version_manager: Optional[VersionManager] = None,
+    output_dir: Optional[str] = None,
     progress_callback: Optional[Callable[[float, str], Awaitable[None]]] = None,
 ) -> str:
     """
@@ -56,7 +58,9 @@ async def run_eda_pipeline(
     plots_dir = None
     if save_plots:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        plots_dir = Path("reports") / "plots" / f"eda_{timestamp}"
+        # Use get_output_dir for absolute path
+        base_plots_dir = get_output_dir(output_dir, "reports/plots")
+        plots_dir = base_plots_dir / f"eda_{timestamp}"
         plots_dir.mkdir(parents=True, exist_ok=True)
         eda.generate_plots(data_path, str(plots_dir))
     
@@ -68,8 +72,8 @@ async def run_eda_pipeline(
     
     # Save report
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    reports_dir = Path("reports")
-    reports_dir.mkdir(parents=True, exist_ok=True)
+    # Use get_output_dir for absolute path
+    reports_dir = get_output_dir(output_dir, "reports")
     
     report_path = reports_dir / f"eda_{modality}_{timestamp}.md"
     with open(report_path, 'w') as f:
@@ -88,4 +92,4 @@ async def run_eda_pipeline(
     if progress_callback:
         await progress_callback(1.0, "EDA complete")
     
-    return str(report_path)
+    return ensure_absolute_return(report_path)

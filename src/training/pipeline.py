@@ -8,7 +8,9 @@ from src.core.version_manager import VersionManager
 from src.core.constraint_manager import ConstraintManager
 from src.core.dataset_detector import DatasetDetector
 from src.models.model_selector import ModelSelector
+
 from src.models.multi_model import MultiModelRunner
+from src.core.path_utils import get_output_dir, resolve_data_path, ensure_absolute_return
 
 
 async def run_automatic_training(
@@ -16,6 +18,7 @@ async def run_automatic_training(
     target_column: Optional[str] = None,
     version_manager: Optional[VersionManager] = None,
     constraint_manager: Optional[ConstraintManager] = None,
+    output_dir: Optional[str] = None,
     ctx: Any = None,
 ) -> dict:
     """
@@ -47,7 +50,9 @@ async def run_automatic_training(
         await ctx.report_progress(progress=0.05, total=1.0, message="Loading data...")
     
     # Load data
-    path = Path(data_path)
+    resolved_data_path, _ = resolve_data_path(data_path, output_dir)
+    path = resolved_data_path
+    
     if path.suffix == '.parquet':
         df = pd.read_parquet(path)
     else:
@@ -151,7 +156,8 @@ async def run_automatic_training(
             best_model=best.model_name,
             best_score=best.score,
             metric_name=metric_name,
-            data_path=str(data_path),
+
+            data_path=str(resolved_data_path),
             target_column=target_column,
         )
         
@@ -168,6 +174,8 @@ async def run_automatic_training(
     # Prepare return value
     return {
         "version": version,
+        "version_path": str(version_manager.get_version_path(version)),
+        "version_path": str(version_manager.get_version_path(version)),
         "models_trained": [r.model_name for r in results if r.error is None],
         "best_model": best.model_name if best else None,
         "best_score": round(best.score, 4) if best else None,
@@ -188,6 +196,7 @@ async def run_eda_guided_training(
     target_column: Optional[str] = None,
     version_manager: Optional[VersionManager] = None,
     constraint_manager: Optional[ConstraintManager] = None,
+    output_dir: Optional[str] = None,
     ctx: Any = None,
 ) -> dict:
     """
@@ -200,6 +209,7 @@ async def run_eda_guided_training(
         target_column=target_column,
         version_manager=version_manager,
         constraint_manager=constraint_manager,
+        output_dir=output_dir,
         ctx=ctx,
     )
 
@@ -209,6 +219,7 @@ async def run_benchmark_training(
     target_column: Optional[str] = None,
     models_to_test: Optional[list[str]] = None,
     version_manager: Optional[VersionManager] = None,
+    output_dir: Optional[str] = None,
     ctx: Any = None,
 ) -> str:
     """
@@ -225,7 +236,9 @@ async def run_benchmark_training(
         await ctx.info("Running quick benchmark training...")
     
     # Load data
-    path = Path(data_path)
+    resolved_data_path, _ = resolve_data_path(data_path, output_dir)
+    path = resolved_data_path
+
     if path.suffix == '.parquet':
         df = pd.read_parquet(path)
     else:
@@ -284,8 +297,7 @@ async def run_benchmark_training(
     model_plan = runner.generate_model_plan()
     
     # Save to reports
-    reports_dir = Path("reports")
-    reports_dir.mkdir(exist_ok=True)
+    reports_dir = get_output_dir(output_dir, "reports")
     
     from datetime import datetime
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -297,4 +309,4 @@ async def run_benchmark_training(
     if ctx:
         await ctx.info(f"Benchmark complete. Model plan saved to {plan_path}")
     
-    return str(plan_path)
+    return ensure_absolute_return(plan_path)

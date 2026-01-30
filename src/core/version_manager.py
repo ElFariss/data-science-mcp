@@ -35,15 +35,23 @@ class ExperimentMetadata:
 class VersionManager:
     """Manages experiment versions and metadata."""
     
-    def __init__(self, experiments_dir: str = "experiments"):
+    def __init__(self, work_dir: Optional[str] = None):
         """
         Initialize version manager.
         
         Args:
-            experiments_dir: Base directory for experiment storage
+            work_dir: Base working directory for experiment storage
         """
-        self.experiments_dir = Path(experiments_dir)
-        self.experiments_dir.mkdir(parents=True, exist_ok=True)
+        from src.core.path_utils import get_output_dir
+        
+        self.work_dir = work_dir
+        # Use path_utils to get absolute experiments directory
+        if work_dir:
+            self.experiments_dir = get_output_dir(work_dir, "experiments")
+        else:
+            self.experiments_dir = Path("experiments").resolve()
+            self.experiments_dir.mkdir(parents=True, exist_ok=True)
+            
         self._metadata_file = self.experiments_dir / "versions.json"
         self._versions: dict[str, ExperimentMetadata] = {}
         self._load_metadata()

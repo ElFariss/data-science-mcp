@@ -32,10 +32,27 @@ from src.core.experiment_tracker import ExperimentTracker
 @dataclass
 class AppContext:
     """Application context with shared resources across tool calls."""
-    version_manager: VersionManager = field(default_factory=VersionManager)
+    # Version managers per output directory
+    _version_managers: dict[str, VersionManager] = field(default_factory=dict)
+    
     constraint_manager: ConstraintManager = field(default_factory=ConstraintManager)
     dataset_detector: DatasetDetector = field(default_factory=DatasetDetector)
     experiment_tracker: ExperimentTracker = field(default_factory=ExperimentTracker)
+
+    def get_version_manager(self, output_dir: Optional[str] = None) -> VersionManager:
+        """Get or create a version manager for the specific output directory."""
+        from pathlib import Path
+        
+        # Normalize output_dir
+        if output_dir is None:
+            key = str(Path.cwd().resolve())
+        else:
+            key = str(Path(output_dir).resolve())
+            
+        if key not in self._version_managers:
+            self._version_managers[key] = VersionManager(work_dir=key)
+            
+        return self._version_managers[key]
 
 
 @asynccontextmanager
@@ -115,6 +132,16 @@ class FeatureStrategyConfig(BaseModel):
         ge=1,
         le=3
     )
+
+
+# ============================================================================
+# Tool: Health Check
+# ============================================================================
+
+@mcp.tool()
+async def ping() -> str:
+    """Health check endpoint to verify connection."""
+    return "pong"
 
 
 # ============================================================================
@@ -220,6 +247,7 @@ def _calculate_batch_size(gpu_info: dict, memory_info: dict) -> int:
 async def plan_strategy(
     data_path: str,
     target_column: Optional[str] = None,
+    output_dir: Optional[str] = None,
     ctx: Context[ServerSession, AppContext] = None,
 ) -> dict:
     """
@@ -273,6 +301,7 @@ async def run_eda(
     data_path: str,
     modality: Optional[str] = None,
     save_plots: bool = True,
+    output_dir: Optional[str] = None,
     ctx: Context[ServerSession, AppContext] = None,
 ) -> str:
     """
@@ -290,7 +319,7 @@ async def run_eda(
     
     app_ctx = ctx.request_context.lifespan_context
     detector = app_ctx.dataset_detector
-    version_manager = app_ctx.version_manager
+    version_manager = app_ctx.get_version_manager(output_dir)
     
     await ctx.report_progress(progress=0.1, total=1.0, message="Detecting data modality...")
     
@@ -306,6 +335,7 @@ async def run_eda(
         modality=modality,
         save_plots=save_plots,
         version_manager=version_manager,
+        output_dir=output_dir,
         progress_callback=lambda p, m: ctx.report_progress(progress=p, total=1.0, message=m),
     )
     
@@ -322,6 +352,8 @@ async def run_eda(
 async def train_automatic(
     data_path: str,
     target_column: Optional[str] = None,
+    output_dir: Optional[str] = None,
+    timeout_minutes: Optional[float] = None,
     ctx: Context[ServerSession, AppContext] = None,
 ) -> dict:
     """
@@ -344,31 +376,36 @@ async def train_automatic(
     
     app_ctx = ctx.request_context.lifespan_context
     constraint_manager = app_ctx.constraint_manager
-    version_manager = app_ctx.version_manager
+    version_manager = app_ctx.get_version_manager(output_dir)
     
-    # Elicit time budget configuration from user
-    await ctx.info("Requesting training configuration from user...")
-    
-    result = await ctx.elicit(
-        message="Configure your training session (default: 3 hours, all models allowed):",
-        schema=TimeBudgetConfig,
-    )
-    
-    if result.action != "accept":
-        return {"status": "cancelled", "message": "Training cancelled by user"}
-    
-    config = result.data
-    
-    # Set constraints
-    constraint_manager.set_time_budget(config.time_budget_hours)
-    constraint_manager.set_deep_learning_allowed(config.allow_deep_learning)
-    constraint_manager.set_basic_ml_only(config.basic_ml_only)
-    
-    await ctx.info(
-        f"Training configured: {config.time_budget_hours}h budget, "
-        f"DL={'enabled' if config.allow_deep_learning else 'disabled'}, "
-        f"Basic ML only={'yes' if config.basic_ml_only else 'no'}"
-    )
+    # If timeout provided directly, set it and skip elicitation
+    if timeout_minutes is not None:
+        constraint_manager.set_time_budget(timeout_minutes / 60.0)
+        await ctx.info(f"Training configured with {timeout_minutes}m budget")
+    else:
+        # Elicit time budget configuration from user
+        await ctx.info("Requesting training configuration from user...")
+        
+        result = await ctx.elicit(
+            message="Configure your training session (default: 3 hours, all models allowed):",
+            schema=TimeBudgetConfig,
+        )
+        
+        if result.action != "accept":
+            return {"status": "cancelled", "message": "Training cancelled by user"}
+        
+        config = result.data
+        
+        # Set constraints
+        constraint_manager.set_time_budget(config.time_budget_hours)
+        constraint_manager.set_deep_learning_allowed(config.allow_deep_learning)
+        constraint_manager.set_basic_ml_only(config.basic_ml_only)
+        
+        await ctx.info(
+            f"Training configured: {config.time_budget_hours}h budget, "
+            f"DL={'enabled' if config.allow_deep_learning else 'disabled'}, "
+            f"Basic ML only={'yes' if config.basic_ml_only else 'no'}"
+        )
     
     # Run training
     training_result = await run_automatic_training(
@@ -376,6 +413,7 @@ async def train_automatic(
         target_column=target_column,
         version_manager=version_manager,
         constraint_manager=constraint_manager,
+        output_dir=output_dir,
         ctx=ctx,
     )
     
@@ -391,6 +429,7 @@ async def train_with_eda(
     data_path: str,
     eda_report_path: str,
     target_column: Optional[str] = None,
+    output_dir: Optional[str] = None,
     ctx: Context[ServerSession, AppContext] = None,
 ) -> dict:
     """
@@ -411,11 +450,11 @@ async def train_with_eda(
     await ctx.info(f"Training using EDA report: {eda_report_path}")
     
     return await run_eda_guided_training(
-        data_path=data_path,
         eda_report_path=eda_report_path,
         target_column=target_column,
-        version_manager=app_ctx.version_manager,
+        version_manager=app_ctx.get_version_manager(output_dir),
         constraint_manager=app_ctx.constraint_manager,
+        output_dir=output_dir,
         ctx=ctx,
     )
 
@@ -429,6 +468,7 @@ async def train_test_mode(
     data_path: str,
     target_column: Optional[str] = None,
     models_to_test: Optional[list[str]] = None,
+    output_dir: Optional[str] = None,
     ctx: Context[ServerSession, AppContext] = None,
 ) -> str:
     """
@@ -455,7 +495,8 @@ async def train_test_mode(
         data_path=data_path,
         target_column=target_column,
         models_to_test=models_to_test,
-        version_manager=app_ctx.version_manager,
+        version_manager=app_ctx.get_version_manager(output_dir),
+        output_dir=output_dir,
         ctx=ctx,
     )
 
@@ -468,6 +509,7 @@ async def train_test_mode(
 async def create_features(
     data_path: str,
     strategy: Optional[str] = None,
+    output_dir: Optional[str] = None,
     ctx: Context[ServerSession, AppContext] = None,
 ) -> dict:
     """
@@ -501,7 +543,8 @@ async def create_features(
     return await run_feature_engineering(
         data_path=data_path,
         strategy=strategy,
-        version_manager=app_ctx.version_manager,
+        version_manager=app_ctx.get_version_manager(output_dir),
+        output_dir=output_dir,
         ctx=ctx,
     )
 
@@ -514,6 +557,7 @@ async def create_features(
 async def evaluate_model(
     version: str,
     analysis_type: str = "full",
+    output_dir: Optional[str] = None,
     ctx: Context[ServerSession, AppContext] = None,
 ) -> dict:
     """
@@ -535,7 +579,8 @@ async def evaluate_model(
     return await run_model_evaluation(
         version=version,
         analysis_type=analysis_type,
-        version_manager=app_ctx.version_manager,
+        version_manager=app_ctx.get_version_manager(output_dir),
+        output_dir=output_dir,
         ctx=ctx,
     )
 
@@ -549,6 +594,7 @@ async def create_ensemble(
     versions: list[str],
     method: str = "average",
     weights: Optional[list[float]] = None,
+    output_dir: Optional[str] = None,
     ctx: Context[ServerSession, AppContext] = None,
 ) -> dict:
     """
@@ -572,7 +618,8 @@ async def create_ensemble(
         versions=versions,
         method=method,
         weights=weights,
-        version_manager=app_ctx.version_manager,
+        version_manager=app_ctx.get_version_manager(output_dir),
+        output_dir=output_dir,
         ctx=ctx,
     )
 
@@ -586,6 +633,7 @@ async def generate_submission(
     version: str,
     test_data_path: Optional[str] = None,
     output_path: Optional[str] = None,
+    output_dir: Optional[str] = None,
     ctx: Context[ServerSession, AppContext] = None,
 ) -> str:
     """
@@ -609,7 +657,8 @@ async def generate_submission(
         version=version,
         test_data_path=test_data_path,
         output_path=output_path,
-        version_manager=app_ctx.version_manager,
+        version_manager=app_ctx.get_version_manager(output_dir),
+        output_dir=output_dir,
         ctx=ctx,
     )
 

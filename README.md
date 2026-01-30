@@ -51,6 +51,7 @@ uv run ds-mcp
 | Tool | Description |
 |------|-------------|
 | `system_inspect` | Inspect hardware (CPU, RAM, GPU) |
+| `ping` | Server health check |
 | `plan_strategy` | Analyze dataset and propose strategy |
 | `run_eda` | Generate comprehensive EDA report |
 | `train_automatic` | Fully automatic training with time budget |
@@ -64,25 +65,41 @@ uv run ds-mcp
 ### Example Workflow
 
 ```python
-# The AI agent would execute these tools:
+# The AI agent should always pass 'output_dir' for absolute path resolution:
 
 # 1. Check system capabilities
 await system_inspect()
 
 # 2. Analyze dataset and plan strategy
-await plan_strategy("data/train.csv")
+await plan_strategy(
+    data_path="data/train.csv",
+    output_dir="/abs/path/to/project"
+)
 
 # 3. Run EDA
-await run_eda("data/train.csv")
+await run_eda(
+    data_path="data/train.csv",
+    output_dir="/abs/path/to/project"
+)
 
-# 4. Train automatically (user sets 3 hour budget)
-await train_automatic("data/train.csv")
+# 4. Train automatically (explicit 30 min timeout)
+await train_automatic(
+    data_path="data/train.csv",
+    output_dir="/abs/path/to/project",
+    timeout_minutes=30
+)
 
 # 5. Evaluate results
-await evaluate_model("v0.1")
+await evaluate_model(
+    version="v0.1",
+    output_dir="/abs/path/to/project"
+)
 
 # 6. Generate submission
-await generate_submission("v0.1")
+await generate_submission(
+    version="v0.1",
+    output_dir="/abs/path/to/project"
+)
 ```
 
 ## Time Budget Configuration
@@ -93,6 +110,12 @@ When calling `train_automatic`, the server uses MCP elicitation to ask:
 - **Allow Deep Learning**: Enable GPU-based models
 - **Basic ML Only**: Restrict to simpler models
 
+Alternatively, agents can pass `timeout_minutes` directly to skip elicitation.
+
+## Path Resolution
+
+To ensure reliability, all tools accept an `output_dir` parameter. This directs the server where to write artifacts (reports, models, submissions). The server guarantees that all returned paths are **absolute**, resolving them relative to the provided `output_dir` (or the server's CWD if not provided).
+
 ## Project Structure
 
 ```
@@ -100,6 +123,8 @@ data-science-mcp/
 ├── src/
 │   ├── server.py           # Main MCP server
 │   ├── core/               # Version, Constraint, Dataset managers
+│   │   ├── path_utils.py   # Path resolution utilities
+│   │   └── ...
 │   ├── eda/                # EDA modules (tabular, timeseries, vision, nlp)
 │   ├── features/           # Feature engineering
 │   ├── models/             # Model registry, selector, multi-model runner

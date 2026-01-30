@@ -6,6 +6,8 @@ import pandas as pd
 from datetime import datetime
 
 from src.core.version_manager import VersionManager
+from src.core.version_manager import VersionManager
+from src.core.path_utils import get_output_dir, ensure_absolute_return
 from src.features.tabular_features import TabularFeatureEngineer
 
 
@@ -13,6 +15,7 @@ async def run_feature_engineering(
     data_path: str,
     strategy: str = "basic",
     version_manager: Optional[VersionManager] = None,
+    output_dir: Optional[str] = None,
     ctx: Any = None,
 ) -> dict:
     """
@@ -59,8 +62,7 @@ async def run_feature_engineering(
         await ctx.report_progress(progress=0.7, total=1.0, message="Saving results...")
     
     # Create output directory
-    features_dir = Path("features")
-    features_dir.mkdir(exist_ok=True)
+    features_dir = get_output_dir(output_dir, "features")
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
@@ -102,6 +104,6 @@ async def run_feature_engineering(
         "features_created": fe.get_feature_names(),
         "n_features_original": len(X.columns),
         "n_features_transformed": len(X_transformed.columns),
-        "transformed_data_path": str(output_path),
-        "feature_config_path": str(config_path),
+        "transformed_data_path": ensure_absolute_return(output_path),
+        "feature_config_path": ensure_absolute_return(config_path),
     }

@@ -6,6 +6,7 @@ from datetime import datetime
 import pandas as pd
 
 from src.core.version_manager import VersionManager
+from src.core.path_utils import get_output_dir, ensure_absolute_return
 
 
 async def generate_submission_file(
@@ -13,6 +14,7 @@ async def generate_submission_file(
     test_data_path: Optional[str] = None,
     output_path: Optional[str] = None,
     version_manager: Optional[VersionManager] = None,
+    output_dir: Optional[str] = None,
     ctx: Any = None,
 ) -> str:
     """
@@ -110,8 +112,9 @@ async def generate_submission_file(
     
     # Save submission
     if output_path is None:
+        submissions_dir = get_output_dir(output_dir, "submissions")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_path = f"submissions/submission_{version}_{timestamp}.csv"
+        output_path = str(submissions_dir / f"submission_{version}_{timestamp}.csv")
     
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     submission.to_csv(output_path, index=False)
@@ -124,7 +127,7 @@ async def generate_submission_file(
         await ctx.info(f"Submission saved to {output_path}")
         await ctx.report_progress(progress=1.0, total=1.0, message="Done")
     
-    return output_path
+    return ensure_absolute_return(output_path)
 
 
 def validate_submission(submission: pd.DataFrame, metadata: Any) -> list[str]:
