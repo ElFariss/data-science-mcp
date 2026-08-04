@@ -1,0 +1,13 @@
+# Temporary PasarPulse acquisition links
+
+- [retail-BM](https://www.bi.go.id/hargapangan/WebSite/TabelHarga/GetGridDataKomoditas?price_type_id=1&comcat_id=com_11&province_id=&regency_id=&showKota=false&showPasar=false&tipe_laporan=1&start_date=2024-02-01&end_date=2026-07-31&skip=0&take=100&requireTotalCount=true)
+- [retail-CMK](https://www.bi.go.id/hargapangan/WebSite/TabelHarga/GetGridDataKomoditas?price_type_id=1&comcat_id=com_14&province_id=&regency_id=&showKota=false&showPasar=false&tipe_laporan=1&start_date=2024-02-01&end_date=2026-07-31&skip=0&take=100&requireTotalCount=true)
+- [retail-CRM](https://www.bi.go.id/hargapangan/WebSite/TabelHarga/GetGridDataKomoditas?price_type_id=1&comcat_id=com_16&province_id=&regency_id=&showKota=false&showPasar=false&tipe_laporan=1&start_date=2024-02-01&end_date=2026-07-31&skip=0&take=100&requireTotalCount=true)
+- [wholesale-BM](https://www.bi.go.id/hargapangan/WebSite/TabelHarga/GetGridDataKomoditas?price_type_id=3&comcat_id=com_11&province_id=&regency_id=&showKota=false&showPasar=false&tipe_laporan=1&start_date=2024-02-01&end_date=2026-07-31&skip=0&take=100&requireTotalCount=true)
+- [wholesale-CMK](https://www.bi.go.id/hargapangan/WebSite/TabelHarga/GetGridDataKomoditas?price_type_id=3&comcat_id=com_14&province_id=&regency_id=&showKota=false&showPasar=false&tipe_laporan=1&start_date=2024-02-01&end_date=2026-07-31&skip=0&take=100&requireTotalCount=true)
+- [wholesale-CRM](https://www.bi.go.id/hargapangan/WebSite/TabelHarga/GetGridDataKomoditas?price_type_id=3&comcat_id=com_16&province_id=&regency_id=&showKota=false&showPasar=false&tipe_laporan=1&start_date=2024-02-01&end_date=2026-07-31&skip=0&take=100&requireTotalCount=true)
+- [producer-BM](https://www.bi.go.id/hargapangan/WebSite/TabelHarga/GetGridDataKomoditas?price_type_id=4&comcat_id=com_11&province_id=&regency_id=&showKota=false&showPasar=false&tipe_laporan=1&start_date=2024-02-01&end_date=2026-07-31&skip=0&take=100&requireTotalCount=true)
+- [producer-CMK](https://www.bi.go.id/hargapangan/WebSite/TabelHarga/GetGridDataKomoditas?price_type_id=4&comcat_id=com_14&province_id=&regency_id=&showKota=false&showPasar=false&tipe_laporan=1&start_date=2024-02-01&end_date=2026-07-31&skip=0&take=100&requireTotalCount=true)
+- [producer-CRM](https://www.bi.go.id/hargapangan/WebSite/TabelHarga/GetGridDataKomoditas?price_type_id=4&comcat_id=com_16&province_id=&regency_id=&showKota=false&showPasar=false&tipe_laporan=1&start_date=2024-02-01&end_date=2026-07-31&skip=0&take=100&requireTotalCount=true)
+
+- [Kaggle retail fallback](https://www.kaggle.com/api/v1/datasets/download/muhyusuf1112/indonesia-commodity-price-based-piphs-source)
