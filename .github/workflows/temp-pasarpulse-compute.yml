@@ -1,0 +1,50 @@
+name: Temporary PasarPulse Compute
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'pasarpulse_compute/**'
+      - 'TEMP_PASARPULSE_LINKS.md'
+  workflow_dispatch:
+
+jobs:
+  optimize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy pyarrow requests scikit-learn lightgbm catboost holidays nbformat nbconvert jupyter
+      - name: Restore PIHPS cache
+        uses: actions/cache@v4
+        with:
+          path: pasarpulse_compute/run/raw_pihps
+          key: pihps-province-2024-02-to-2026-07-v2
+      - name: Run optimizer
+        run: python pasarpulse_compute/pasarpulse_optimizer.py --workdir pasarpulse_compute/run
+      - name: Execute notebook
+        working-directory: pasarpulse_compute/run/results
+        run: |
+          jupyter nbconvert --to notebook --execute pasarpulse_proposed_optimizer.ipynb --output pasarpulse_proposed_optimizer_executed.ipynb --ExecutePreprocessor.timeout=900
+      - name: Package results
+        run: |
+          cp pasarpulse_compute/pasarpulse_optimizer.py pasarpulse_compute/run/results/
+          cd pasarpulse_compute/run/results
+          zip -9 -r ../../pasarpulse_optimizer_results.zip .
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pasarpulse-optimizer-results
+          path: pasarpulse_compute/pasarpulse_optimizer_results.zip
+          if-no-files-found: error
+          retention-days: 30
